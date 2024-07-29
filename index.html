@@ -1,0 +1,339 @@
+<!doctype html>
+<html>
+    <head></head>
+    <title>MBTA timings</title>
+    <style type="text/css">
+        body {
+            font-family: Arial;
+            font-size: 250%;
+        }
+        h2 {
+            font-size: 1em;
+            margin-block-end: 0;
+        }
+        h3 {
+            font-size: 0.9em;
+            margin-block-end: 0;
+        }
+    </style>
+    <body>
+        <div id="content"></div>
+        <div id="message"></div>
+        <script type="text/javascript">
+            var stopNums;
+            var stopConfig = {}
+            var vehicleConfig;
+
+            var vehiclesAtTerminus = {}
+
+            var msPerMin = 60 * 1000; // milliseconds per min
+            var msPer55Min = 55 * msPerMin; // milliseconds per 55 min
+            var msPerHour = 60 * msPerMin; // milliseconds per hour
+            
+            var pollingInterval = msPerMin;
+            var fastPollingInterval = 15 * 1000;
+            var pollNum = 0
+            var latestReturnedPollNum = 0
+            
+            var vehiclePollNum = 0
+            var latestReturnedVehiclePollNum = 0
+
+            var isFastPoll = false;
+            
+            var pollIntervalID;
+            var sleepIntervalID;
+            
+            var predictionData;
+            var vehicleData;
+
+            // var newVehicleBodyEl = document.createElement('div');
+            var apiKey = getQueryVariable("api")
+
+            getAndSetStops()
+
+
+            function callAPIs() {
+                // var now = new Date()
+                // if (!isInSchedule(now)) {
+                //     clearInterval(pollIntervalID);
+                //     setStopsSleep();
+                //     sleepIntervalID = setInterval(checkIfShouldWake, msPerHour);
+                //     return;
+                // }
+                console.log('polling', pollNum)
+
+                getPredictions()
+                // if (vehicleConfig) {
+                //     getVehicle()
+                // }
+            }
+
+            function getPredictions(){
+                var xhttp = new XMLHttpRequest();
+                pollNum++;
+                var currentPollNum = pollNum
+                xhttp.onprogress = function(event) {
+                    // only update if it's the most recent request to have come back
+                    if (latestReturnedPollNum < currentPollNum) {
+                        latestReturnedPollNum = currentPollNum;
+
+                        predictionData = JSON.parse(xhttp.response).data
+                        updateUI()
+                    }
+                };
+                xhttp.open("GET", "https://api-v3.mbta.com/predictions/?filter[stop]=" + stopNums.join(",") + "&sort=arrival_time", true);
+                xhttp.setRequestHeader('x-api-key', apiKey)
+                xhttp.send();
+            }
+
+
+            function updateUI(){
+                if (predictionData) {
+                    updatePredictions()
+                }
+                // if (vehicleData) {
+                //     updateVehicle()
+                // }
+
+                // if (document.getElementById("vehicles-at-terminus")){
+                //     updateUnpredictedVehiclesAtTerminus()
+                // }
+            }
+
+            function updatePredictions(){
+                var predictions = {}
+                for (var i = 0; i < stopNums.length; i++) {
+                    predictions[stopNums[i]] = []
+                }
+
+                for (var i = 0; i < predictionData.length; i++) {
+                    var prediction = predictionData[i]
+                    var stopNum = prediction.relationships.stop.data.id
+
+                    if (stopConfig[stopNum] && stopConfig[stopNum]["maxNumPredictions"] && predictions[stopNum].length >= stopConfig[stopNum]["maxNumPredictions"]) {
+                        continue;
+                    }
+
+                    var vehicleId;
+                    if (prediction.relationships.vehicle.data) {
+                        vehicleId = prediction.relationships.vehicle.data.id
+                    }
+                    predictions[stopNum].push({
+                        'id': prediction.id,
+                        'route': prediction.relationships.route.data.id,
+                        'status': prediction.attributes.status,
+                        'arrivalTime': prediction.attributes.arrival_time,
+                        'departureTime': prediction.attributes.departure_time,
+                        'arrivalUncertainty': prediction.attributes.arrival_uncertainty,
+                        'vehicleId': vehicleId,
+                    })
+                }
+
+                var now = Date.now()
+                var shouldBeFastPolling = false;
+                for (var i = 0; i < stopNums.length; i++) {
+                    var newStopEl = document.createElement('div');
+                    newStopEl.setAttribute('id', "stop-body-"+ stopNums[i])
+
+                    for (var j = 0; j < predictions[stopNums[i]].length; j++) {
+                        prediction = predictions[stopNums[i]][j]
+                        var showNegative = false;
+                        if (stopConfig[stopNums[i]] && stopConfig[stopNums[i]]["showNegative"]) {
+                            showNegative = true;
+                        }
+
+                        var routeName;
+                        if (stopConfig[stopNums[i]] && stopConfig[stopNums[i]]["routeName"]) {
+                            routeName = stopConfig[stopNums[i]]["routeName"]
+                        } else {
+                            routeName = prediction.route
+                        }
+
+                        var showVehicleId = false;
+                        if (stopConfig[stopNums[i]] && stopConfig[stopNums[i]]["showVehicleId"]) {
+                            showVehicleId = true;
+                        }
+
+                        // var predictionMessage = "hi"
+                        var predictionMessage = formatPredictionMessage(now, prediction, showNegative, routeName, showVehicleId)
+
+                        if (predictionMessage) {
+                            var predictionEl = document.createElement('div');
+                            predictionEl.innerText = predictionMessage
+                            newStopEl.appendChild(predictionEl)
+                        }
+
+                        // if (stopConfig[stopNums[i]] && stopConfig[stopNums[i]]["addToVehiclesAtTerminus"] && new Date(prediction.arrivalTime) < now) {
+                        //     vehiclesAtTerminus[prediction.vehicleId] = {
+                        //         "arrivalTime": prediction.arrivalTime,
+                        //         "vehicleId": prediction.vehicleId,
+                        //     };
+                        // }
+                        // if (stopConfig[stopNums[i]] && stopConfig[stopNums[i]]["removeFromVehiclesAtTerminus"] && vehiclesAtTerminus[prediction.vehicleId]) {
+                        //     delete vehiclesAtTerminus[prediction.vehicleId];
+                        // }
+                    }
+                    // if (stopConfig[stopNums[i]] &&
+                    //     stopConfig[stopNums[i]]["fastPollIfNone"] &&
+                    //     newStopEl.children.length == 0) {
+                    //     shouldBeFastPolling = true;
+
+                    //     if (!isFastPoll){
+                    //         // switch to fast poll
+                    //         console.log("switching to fast poll")
+                    //         clearInterval(pollIntervalID);
+                    //         pollIntervalID = setInterval(callAPIs, fastPollingInterval);
+                    //         isFastPoll = true;
+                    //     }
+                    // }
+                    document.getElementById("stop-body-"+stopNums[i]).innerHTML = newStopEl.innerHTML
+                }
+
+                
+                if (isFastPoll && !shouldBeFastPolling) {
+                    // switch to slow poll
+                    console.log("switching to slow poll")
+                    isFastPoll = false;
+                    clearInterval(pollIntervalID);
+                    pollIntervalID = setInterval(callAPIs, pollingInterval);
+                }
+            }
+
+            function formatPredictionMessage(now, prediction, showNegative, routeName, showVehicleId){
+                var predictedTime
+                if (!prediction.arrivalTime){
+                    predictedTime = new Date(prediction.departureTime)
+                } else {
+                    predictedTime = new Date(prediction.arrivalTime)       
+                }
+                var minLeft = Math.round((predictedTime - now) / msPerMin)
+                
+                var timeMessage = "";
+                
+                if (minLeft < 0 && !showNegative) {
+                    return null
+                } else if (minLeft < 60) {
+                    timeMessage = minLeft + " min"
+                } else {
+                    var hours = predictedTime.getHours();
+                    var minutes = predictedTime.getMinutes();
+                    if (minutes < 10) {
+                        minutes = "0" + minutes
+                    }
+                    if (hours < 12){
+                        timeMessage = hours + "." + minutes + " am"
+                    } else if (hours == 12) {
+                        timeMessage = hours + "." + minutes + " pm"
+                    } else {
+                        timeMessage = hours - 12 + "." + minutes + " pm"
+                    }
+                }
+
+                var predictionMessage = routeName + ": " + timeMessage
+
+                if (prediction.status){
+                    predictionMessage += " - " + prediction.status
+                }
+
+                // https://github.com/mbta/gtfs-documentation/blob/master/reference/gtfs-realtime.md#uncertainty-values
+                // Mushing together both bus and rail codes
+                if (prediction.arrivalUncertainty){
+                    switch (true) {
+                        case prediction.arrivalUncertainty == 60:
+                            // Train: trip has started
+                            break;
+                        case prediction.arrivalUncertainty == 120:
+                            // Train: A terminal/reverse trip departure for a trip that has NOT started and a train is awaiting departure at the origin
+                            predictionMessage += " ~ waiting at origin"
+                            break;
+                        case prediction.arrivalUncertainty == 360:
+                            // Train: A terminal/reverse trip for a trip that has NOT started and a train is completing a previous trip
+                            predictionMessage += " ~ completing prev trip"
+                            break;
+                            // return null; // THIS IS A RETURN
+                        case prediction.arrivalUncertainty < 300:
+                            // Bus: Valid real-time prediction
+                            break;
+                        case prediction.arrivalUncertainty == 300:
+                            // Bus: Real-time prediction not available. This code is primarily used when a vehicle has not yet been assigned to the trip, (i.e. because the block has not started yet). It is a schedule-based prediction, but we adjust the schedule-based prediction time using observed historical travel times to make predictions more accurate than the schedule.
+                            predictionMessage += " ~ adjusted schedule"
+                            break;
+                        case prediction.arrivalUncertainty == 301:
+                            // Bus: Valid real-time prediction, though the bus appears to be stalled or significantly delayed and predictions are not as accurate
+                            predictionMessage += " ~ stalled/delayed"
+                            break;
+                        case prediction.arrivalUncertainty > 301:
+                            // Bus: Likely invalid prediction, recommend not showing anything (and not showing scheduled time), very rare situation.
+                            return null; // THIS IS A RETURN
+                        default:
+                            predictionMessage += " ~ unexpected code spot"
+                    }
+                }
+
+                if (showVehicleId) {
+                    predictionMessage += " - " + prediction.vehicleId
+                }
+                
+                return predictionMessage
+            }
+
+            function setStopsSleep(){
+                for (var i = 0; i < stopNums.length; i++) {
+                    var newStopEl = document.createElement('div');
+                    newStopEl.setAttribute('id', "stop-body-"+ stopNums[i])
+                    newStopEl.innerText = "Sleeping...";
+                    document.getElementById("stop-body-"+stopNums[i]).innerHTML = newStopEl.innerHTML
+                }
+            }
+
+            function getAndSetStops(){
+                var stopsString = getQueryVariable("stops")
+                stopNums = stopsString.split(",");
+
+                var xhttp = new XMLHttpRequest();
+                xhttp.onprogress = function(event) {
+                    var stopsData = JSON.parse(xhttp.response).data
+                    for (var i = 0; i < stopNums.length; i++) {
+                        var stopData;
+                        for (var j = 0; j < stopsData.length; j++) {
+                            if (stopNums[i] == stopsData[j].id) {
+                                stopData = stopsData[j]
+                            }
+                        }
+
+                        var el = document.createElement('div');
+                        el.setAttribute('id', "stop-"+ stopNums[i])
+                        var title;
+                        if (stopConfig[stopNums[i]] && stopConfig[stopNums[i]]["name"]) {
+                            title = stopConfig[stopNums[i]]["name"]
+                        }
+                        else if (stopData.attributes.description){
+                            title = stopData.attributes.description
+                        } else {
+                             title = stopData.attributes.name
+                        }
+                        el.innerHTML = '<h2 id="stop-title-' + stopNums[i] + '">' + title + '</h2><div id="stop-body-' + stopNums[i] +'"></div>';
+                        document.getElementById("content").appendChild(el)
+                    }
+                    callAPIs()
+                };
+                if (!isFastPoll) { // if it is, the first call should have already switched and trigger the fast poll
+                    pollIntervalID = setInterval(callAPIs, pollingInterval);
+                }
+                xhttp.open("GET", "https://api-v3.mbta.com/stops" + "?filter[id]=" + stopNums.join(",") + "&fields[stop]=name,description", true);
+                xhttp.setRequestHeader('x-api-key', apiKey)
+                xhttp.send();
+            }
+
+            function getQueryVariable(variable) {
+               var query = window.location.search.substring(1);
+               var vars = query.split("&");
+               for (var i=0;i<vars.length;i++) {
+                   var pair = vars[i].split("=");
+                   if(pair[0] == variable){return pair[1];}
+               }
+               return(false);
+           }
+        </script>
+    </body>
+</html>
