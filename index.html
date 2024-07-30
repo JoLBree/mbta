@@ -72,9 +72,9 @@
                 var xhttp = new XMLHttpRequest();
                 pollNum++;
                 var currentPollNum = pollNum
-                xhttp.onprogress = function(event) {
+                xhttp.onreadystatechange = function(event) {
                     // only update if it's the most recent request to have come back
-                    if (latestReturnedPollNum < currentPollNum) {
+                    if (xhttp.readyState == XMLHttpRequest.DONE && latestReturnedPollNum < currentPollNum) {
                         latestReturnedPollNum = currentPollNum;
 
                         predictionData = JSON.parse(xhttp.response).data
@@ -291,7 +291,8 @@
                 stopNums = stopsString.split(",");
 
                 var xhttp = new XMLHttpRequest();
-                xhttp.onprogress = function(event) {
+                xhttp.onreadystatechange = function(event) {
+                    if (xhttp.readyState == XMLHttpRequest.DONE) {
                     var stopsData = JSON.parse(xhttp.response).data
                     for (var i = 0; i < stopNums.length; i++) {
                         var stopData;
@@ -316,6 +317,7 @@
                         document.getElementById("content").appendChild(el)
                     }
                     callAPIs()
+                    }
                 };
                 if (!isFastPoll) { // if it is, the first call should have already switched and trigger the fast poll
                     pollIntervalID = setInterval(callAPIs, pollingInterval);
