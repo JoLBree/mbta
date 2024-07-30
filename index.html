@@ -26,6 +26,36 @@
 
             var vehiclesAtTerminus = {}
 
+            var currentSchedule = 'vacation'
+            var schedules = { // hours: [inclusive, exclusive]
+                "regular": {
+                    0: [9, 23], // sun 9am - 11pm
+                    1: [17, 23], // mon 5pm - 11pm
+                    2: [17, 23], // tue 5pm - 11pm
+                    3: [17, 23], // wed 5pm - 11pm
+                    4: [17, 23], // thurs 5pm - 11pm
+                    5: [17, 23], // fri 5pm - 11pm
+                    6: [9, 23], // sat 9am - 11pm
+                },
+                "vacation": {
+                    0: [9, 23], // 9am - 11pm every day
+                    1: [9, 23],
+                    2: [9, 23],
+                    3: [9, 23],
+                    4: [9, 23],
+                    5: [9, 23],
+                    6: [9, 23],
+                },
+                "5am - midnight": {
+                    0: [5, 24], // 5am - midnight every day. technically things run till 1am but I can't be bothered to write that
+                    1: [5, 24],
+                    2: [5, 24],
+                    3: [5, 24],
+                    4: [5, 24],
+                    5: [5, 24],
+                    6: [5, 24],
+                }
+            }
             var msPerMin = 60 * 1000; // milliseconds per min
             var msPer55Min = 55 * msPerMin; // milliseconds per 55 min
             var msPerHour = 60 * msPerMin; // milliseconds per hour
@@ -72,18 +102,37 @@
                 var xhttp = new XMLHttpRequest();
                 pollNum++;
                 var currentPollNum = pollNum
-                xhttp.onreadystatechange = function(event) {
-                    // only update if it's the most recent request to have come back
-                    if (xhttp.readyState == XMLHttpRequest.DONE && latestReturnedPollNum < currentPollNum) {
-                        latestReturnedPollNum = currentPollNum;
+                var now = new Date()
+                var hours = now.getHours();
+                var minutes = now.getMinutes();
+                var seconds = now.getSeconds();
+                if (minutes < 10) {
+                    minutes = "0" + minutes
+                }
+                var timeMessage;
+                if (hours < 12){
+                    timeMessage = hours + "." + minutes + ":" + seconds + " am"
+                } else if (hours == 12) {
+                    timeMessage = hours + "." + minutes + ":" + seconds + " pm"
+                } else {
+                    timeMessage = hours - 12 + "." + minutes + ":" + seconds + " pm"
+                }
+                document.getElementById("message").innerText = timeMessage
 
-                        predictionData = JSON.parse(xhttp.response).data
-                        updateUI()
-                    }
-                };
-                xhttp.open("GET", "https://api-v3.mbta.com/predictions/?filter[stop]=" + stopNums.join(",") + "&sort=arrival_time", true);
-                xhttp.setRequestHeader('x-api-key', apiKey)
-                xhttp.send();
+                // xhttp.onprogress = function(event) {
+                // xhttp.onreadystatechange = function(event) {
+                //     // only update if it's the most recent request to have come back
+                //     if (xhttp.readyState == XMLHttpRequest.DONE && latestReturnedPollNum < currentPollNum) {
+                //         latestReturnedPollNum = currentPollNum;
+                //         console.log(xhttp.response)
+                //         predictionData = JSON.parse(xhttp.response).data
+                //         console.log(xhttp.response)
+                //         updateUI()
+                //     }
+                // };
+                // xhttp.open("GET", "https://api-v3.mbta.com/predictions/?filter[stop]=" + stopNums.join(",") + "&sort=arrival_time", true);
+                // xhttp.setRequestHeader('x-api-key', apiKey)
+                // xhttp.send();
             }
 
 
@@ -293,30 +342,30 @@
                 var xhttp = new XMLHttpRequest();
                 xhttp.onreadystatechange = function(event) {
                     if (xhttp.readyState == XMLHttpRequest.DONE) {
-                    var stopsData = JSON.parse(xhttp.response).data
-                    for (var i = 0; i < stopNums.length; i++) {
-                        var stopData;
-                        for (var j = 0; j < stopsData.length; j++) {
-                            if (stopNums[i] == stopsData[j].id) {
-                                stopData = stopsData[j]
+                        var stopsData = JSON.parse(xhttp.response).data
+                        for (var i = 0; i < stopNums.length; i++) {
+                            var stopData;
+                            for (var j = 0; j < stopsData.length; j++) {
+                                if (stopNums[i] == stopsData[j].id) {
+                                    stopData = stopsData[j]
+                                }
                             }
-                        }
 
-                        var el = document.createElement('div');
-                        el.setAttribute('id', "stop-"+ stopNums[i])
-                        var title;
-                        if (stopConfig[stopNums[i]] && stopConfig[stopNums[i]]["name"]) {
-                            title = stopConfig[stopNums[i]]["name"]
-                        }
-                        else if (stopData.attributes.description){
-                            title = stopData.attributes.description
-                        } else {
-                             title = stopData.attributes.name
-                        }
-                        el.innerHTML = '<h2 id="stop-title-' + stopNums[i] + '">' + title + '</h2><div id="stop-body-' + stopNums[i] +'"></div>';
-                        document.getElementById("content").appendChild(el)
-                    }
-                    callAPIs()
+                            var el = document.createElement('div');
+                            el.setAttribute('id', "stop-"+ stopNums[i])
+                            var title;
+                            if (stopConfig[stopNums[i]] && stopConfig[stopNums[i]]["name"]) {
+                                title = stopConfig[stopNums[i]]["name"]
+                            }
+                            else if (stopData.attributes.description){
+                                title = stopData.attributes.description
+                            } else {
+                               title = stopData.attributes.name
+                           }
+                           el.innerHTML = '<h2 id="stop-title-' + stopNums[i] + '">' + title + '</h2><div id="stop-body-' + stopNums[i] +'"></div>';
+                           document.getElementById("content").appendChild(el)
+                       }
+                       callAPIs()
                     }
                 };
                 if (!isFastPoll) { // if it is, the first call should have already switched and trigger the fast poll
