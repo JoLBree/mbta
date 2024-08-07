@@ -176,8 +176,17 @@
                     if (xhttp.readyState == XMLHttpRequest.DONE && latestReturnedPollNum < currentPollNum) {
                         latestReturnedPollNum = currentPollNum;
                         // document.getElementById("message").innerText = xhttp.response
-                        predictionData = JSON.parse(xhttp.response).data
-                        updateUI()
+                        var xhttpString = "";
+                        for (var key in xhttp) {
+                            if (typeof xhttp[key] !== 'function') {
+                                xhttpString += key + ":" + xhttp[key] + " ";
+                            }
+                        }
+                        logServer("response " + new Date() + " : " + event + " : " + pollNum + " : " + xhttpString)
+                        if (xhttp.response){
+                            predictionData = JSON.parse(xhttp.response).data
+                            updateUI()
+                        }
                     }
                 };
                 xhttp.open("GET", "https://api-v3.mbta.com/predictions/?filter[stop]=" + stopNums.join(",") + "&sort=arrival_time", true);
