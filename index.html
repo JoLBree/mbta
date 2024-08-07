@@ -24,8 +24,8 @@
     </style>
     <body>
         <div id="clock"></div>
+        <div id="message"></div>
         <div id="content"></div>
-        <!-- <div id="message"></div> -->
         <script type="text/javascript">
             var logDest = getQueryVariable("log")
 
@@ -56,6 +56,12 @@
 
 
             var testLog = logServer("Starting " + new Date() + " " + window.navigator.userAgent)
+            testLog.onreadystatechange = function(event) {
+                    // only update if it's the most recent request to have come back
+                if (testLog.readyState == XMLHttpRequest.DONE) {
+                    document.getElementById("message").innerText = testLog.response
+                }
+            };
 
             var stopNums;
             var stopConfig = {}
