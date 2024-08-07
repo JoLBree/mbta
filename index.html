@@ -28,7 +28,35 @@
         <div id="message-error"></div>
         <div id="message"></div>
         <script type="text/javascript">
+            var logDest = getQueryVariable("log")
+
             var stopNums;
+
+            // do this. XMLHttpRequest post, with error payload
+            // figure out private github repo
+            // https://stackoverflow.com/questions/21939713/hide-api-key-for-a-github-page
+            function logError(message) {
+                var xhttp = new XMLHttpRequest();
+                xhttp.open("POST", "https://" + logDest + ".lambda-url.us-east-2.on.aws/", true);
+                xhttp.send()
+                return xhttp
+            }
+
+            window.onerror = function (message, file, line, col, error) {
+                var now = new Date()
+                logError(error.message + ":" + message + ":" + file + ":" + file + ":" + line + ":" + col + ":" + stopNums + ":" + now);
+                return false;
+             };
+
+             window.addEventListener("error", function (e) {
+                var now = new Date()
+                logError(e.error.message + ":" + message + ":" + file + ":" + file + ":" + line + ":" + col + ":" + stopNums + ":" + now);
+                return false;
+             })
+
+
+            var testLog = logError("test")
+
             var stopConfig = {}
             var vehicleConfig;
 
@@ -353,6 +381,7 @@
                 var xhttp = new XMLHttpRequest();
                 xhttp.onreadystatechange = function(event) {
                     if (xhttp.readyState == XMLHttpRequest.DONE) {
+                        console.log(xhttp.response)
                         var stopsData = JSON.parse(xhttp.response).data
                         for (var i = 0; i < stopNums.length; i++) {
                             var stopData;
