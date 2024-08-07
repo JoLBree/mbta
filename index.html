@@ -25,17 +25,16 @@
     <body>
         <div id="clock"></div>
         <div id="content"></div>
-        <div id="message-error"></div>
-        <div id="message"></div>
+        <!-- <div id="message"></div> -->
         <script type="text/javascript">
             var logDest = getQueryVariable("log")
 
-            var stopNums;
+            var pollNum = 0
 
             // do this. XMLHttpRequest post, with error payload
             // figure out private github repo
             // https://stackoverflow.com/questions/21939713/hide-api-key-for-a-github-page
-            function logError(message) {
+            function logServer(message) {
                 var xhttp = new XMLHttpRequest();
                 xhttp.open("POST", "https://" + logDest + ".lambda-url.us-east-2.on.aws/", true);
                 xhttp.setRequestHeader("Content-Type", "application/json");
@@ -45,19 +44,20 @@
 
             window.onerror = function (message, file, line, col, error) {
                 var now = new Date()
-                logError(error.message + ":" + message + ":" + file + ":" + file + ":" + line + ":" + col + ":" + stopNums + ":" + now);
+                logServer("onerror " + error.message + " : " + message + " : " + file + " : " + file + " : " + line + " : " + col + " : " + pollNum + " : " + now);
                 return false;
              };
 
              window.addEventListener("error", function (e) {
                 var now = new Date()
-                logError(e.error.message + ":" + message + ":" + file + ":" + file + ":" + line + ":" + col + ":" + stopNums + ":" + now);
+                logServer("event error " + e.error.message + " : " + pollNum + " : " + now);
                 return false;
              })
 
 
-            var testLog = logError("test")
+            var testLog = logServer("Starting " + new Date() + " " + window.navigator.userAgent)
 
+            var stopNums;
             var stopConfig = {}
             var vehicleConfig;
 
@@ -99,7 +99,6 @@
             
             var pollingInterval = msPerMin;
             var fastPollingInterval = 15 * 1000;
-            var pollNum = 0
             var latestReturnedPollNum = 0
             
             var vehiclePollNum = 0
@@ -159,13 +158,13 @@
             
                 // xhttp.onprogress = function(event) {
                 xhttp.onerror = function(event) {
-                    document.getElementById("message-error").innerText = event
+                    logServer("xhttp error " + new Date() + " : " + event + " : " + pollNum)
                 }
                 xhttp.onreadystatechange = function(event) {
                     // only update if it's the most recent request to have come back
                     if (xhttp.readyState == XMLHttpRequest.DONE && latestReturnedPollNum < currentPollNum) {
                         latestReturnedPollNum = currentPollNum;
-                        document.getElementById("message").innerText = xhttp.response
+                        // document.getElementById("message").innerText = xhttp.response
                         predictionData = JSON.parse(xhttp.response).data
                         updateUI()
                     }
@@ -382,7 +381,7 @@
                 var xhttp = new XMLHttpRequest();
                 xhttp.onreadystatechange = function(event) {
                     if (xhttp.readyState == XMLHttpRequest.DONE) {
-                        console.log(xhttp.response)
+                        // console.log(xhttp.response)
                         var stopsData = JSON.parse(xhttp.response).data
                         for (var i = 0; i < stopNums.length; i++) {
                             var stopData;
