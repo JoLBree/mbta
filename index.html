@@ -172,7 +172,6 @@
                     logServer("xhttp error " + new Date() + " : " + event + " : " + pollNum + " : " + xhttpString)
                 }
                 xhttp.onreadystatechange = function(event) {
-                    debugger;
                     // only update if it's the most recent request to have come back
                     if (xhttp.readyState == XMLHttpRequest.DONE && latestReturnedPollNum < currentPollNum) {
                         latestReturnedPollNum = currentPollNum;
