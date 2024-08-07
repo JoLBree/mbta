@@ -162,11 +162,17 @@
                 }
                 document.getElementById("clock").innerText = timeMessage
             
-                // xhttp.onprogress = function(event) {
                 xhttp.onerror = function(event) {
-                    logServer("xhttp error " + new Date() + " : " + event + " : " + pollNum)
+                    var xhttpString = "";
+                    for (var key in xhttp) {
+                        if (typeof xhttp[key] !== 'function') {
+                            xhttpString += key + ":" + xhttp[key] + " ";
+                        }
+                    }
+                    logServer("xhttp error " + new Date() + " : " + event + " : " + pollNum + " : " + xhttpString)
                 }
                 xhttp.onreadystatechange = function(event) {
+                    debugger;
                     // only update if it's the most recent request to have come back
                     if (xhttp.readyState == XMLHttpRequest.DONE && latestReturnedPollNum < currentPollNum) {
                         latestReturnedPollNum = currentPollNum;
