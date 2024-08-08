@@ -7,33 +7,16 @@
             font-family: Arial;
             font-size: 250%;
         }
-        h2 {
-            font-size: 1em;
-            margin-block-end: 0;
-        }
-        h3 {
-            font-size: 0.9em;
-            margin-block-end: 0;
-        }
-        #message {
-/*            font-size: 16px;*/
-        }
-        #clock {
-/*            font-size: 16px;*/
-        }
     </style>
     <body>
-        <div id="clock"></div>
         <div id="message"></div>
         <div id="content"></div>
         <script type="text/javascript">
+            var last_response_len = 0;
+            var predictions = []
+            var apiKey = getQueryVariable("api")
             var logDest = getQueryVariable("log")
 
-            var pollNum = 0
-
-            // do this. XMLHttpRequest post, with error payload
-            // figure out private github repo
-            // https://stackoverflow.com/questions/21939713/hide-api-key-for-a-github-page
             function logServer(message) {
                 var xhttp = new XMLHttpRequest();
                 xhttp.open("POST", "https://" + logDest + ".lambda-url.us-east-2.on.aws/", true);
@@ -48,405 +31,6 @@
                 return xhttp
             }
 
-            window.alert = function() {logServer("tried to alert : " + pollNum)};
-
-            window.onerror = function (message, file, line, col, error) {
-                var now = new Date()
-                logServer("onerror " + error.message + " : " + message + " : " + file + " : " + file + " : " + line + " : " + col + " : " + pollNum + " : " + now);
-                return false;
-             };
-
-             window.addEventListener("error", function (e) {
-                var now = new Date()
-                logServer("event error " + e.error.message + " : " + pollNum + " : " + now);
-                return false;
-             })
-
-
-            var testLog = logServer("Starting " + new Date() + " " + window.navigator.userAgent)
-            testLog.onreadystatechange = function(event) {
-                    // only update if it's the most recent request to have come back
-                if (testLog.readyState == XMLHttpRequest.DONE) {
-                    document.getElementById("message").innerText = testLog.response
-                }
-            };
-
-            var stopNums;
-            var stopConfig = {}
-            var vehicleConfig;
-
-            var vehiclesAtTerminus = {}
-
-            var currentSchedule = 'vacation'
-            var schedules = { // hours: [inclusive, exclusive]
-                "regular": {
-                    0: [9, 23], // sun 9am - 11pm
-                    1: [17, 23], // mon 5pm - 11pm
-                    2: [17, 23], // tue 5pm - 11pm
-                    3: [17, 23], // wed 5pm - 11pm
-                    4: [17, 23], // thurs 5pm - 11pm
-                    5: [17, 23], // fri 5pm - 11pm
-                    6: [9, 23], // sat 9am - 11pm
-                },
-                "vacation": {
-                    0: [9, 23], // 9am - 11pm every day
-                    1: [9, 23],
-                    2: [9, 23],
-                    3: [9, 23],
-                    4: [9, 23],
-                    5: [9, 23],
-                    6: [9, 23],
-                },
-                "5am - midnight": {
-                    0: [5, 24], // 5am - midnight every day. technically things run till 1am but I can't be bothered to write that
-                    1: [5, 24],
-                    2: [5, 24],
-                    3: [5, 24],
-                    4: [5, 24],
-                    5: [5, 24],
-                    6: [5, 24],
-                }
-            }
-            var msPerMin = 60 * 1000; // milliseconds per min
-            var msPer55Min = 55 * msPerMin; // milliseconds per 55 min
-            var msPerHour = 60 * msPerMin; // milliseconds per hour
-            
-            var pollingInterval = msPerMin;
-            var fastPollingInterval = 15 * 1000;
-            var latestReturnedPollNum = 0
-            
-            var vehiclePollNum = 0
-            var latestReturnedVehiclePollNum = 0
-
-            var isFastPoll = false;
-            
-            var pollIntervalID;
-            var sleepIntervalID;
-            
-            var predictionData;
-            var vehicleData;
-
-            // var newVehicleBodyEl = document.createElement('div');
-            var apiKey = getQueryVariable("api")
-
-            getAndSetStops()
-
-
-            function callAPIs() {
-                // var now = new Date()
-                // if (!isInSchedule(now)) {
-                //     clearInterval(pollIntervalID);
-                //     setStopsSleep();
-                //     sleepIntervalID = setInterval(checkIfShouldWake, msPerHour);
-                //     return;
-                // }
-                console.log('polling', pollNum)
-
-                getPredictions()
-                // if (vehicleConfig) {
-                //     getVehicle()
-                // }
-            }
-
-            function getPredictions(){
-                var xhttp = new XMLHttpRequest();
-                pollNum++;
-                var currentPollNum = pollNum
-
-                var now = new Date()
-                var hours = now.getHours();
-                var minutes = now.getMinutes();
-                var seconds = now.getSeconds();
-                if (minutes < 10) {
-                    minutes = "0" + minutes
-                }
-                var timeMessage;
-                if (hours < 12){
-                    timeMessage = hours + "." + minutes + ":" + seconds + " am"
-                } else if (hours == 12) {
-                    timeMessage = hours + "." + minutes + ":" + seconds + " pm"
-                } else {
-                    timeMessage = hours - 12 + "." + minutes + ":" + seconds + " pm"
-                }
-
-                document.getElementById("clock").innerText = timeMessage
-                // logServer(timeMessage + " : " + pollNum + " " + window.navigator.userAgent)
-                xhttp.onerror = function(event) {
-                    var xhttpString = "";
-                    for (var key in xhttp) {
-                        if (typeof xhttp[key] !== 'function') {
-                            xhttpString += key + ":" + xhttp[key] + " ";
-                        }
-                    }
-                    logServer("xhttp error " + new Date() + " : " + event + " : " + pollNum + " : " + xhttpString)
-                }
-                xhttp.onreadystatechange = function(event) {
-                    // only update if it's the most recent request to have come back
-                    if (xhttp.readyState == XMLHttpRequest.DONE && latestReturnedPollNum < currentPollNum) {
-                        latestReturnedPollNum = currentPollNum;
-                        // document.getElementById("message").innerText = xhttp.response
-                        var xhttpString = "";
-                        for (var key in xhttp) {
-                            if (typeof xhttp[key] !== 'function') {
-                                xhttpString += key + ":" + xhttp[key] + " ";
-                            }
-                        }
-                        logServer("response " + new Date() + " : " + event + " : " + pollNum + " : " + xhttpString)
-                        if (!xhttp.response){
-                            logServer("error: response null, ending execution");
-                            throw new Error("network error, ending execution");
-                        }
-                        predictionData = JSON.parse(xhttp.response).data
-                        updateUI()
-                    }
-                };
-                xhttp.open("GET", "https://api-v3.mbta.com/predictions/?filter[stop]=" + stopNums.join(",") + "&sort=arrival_time", true);
-                xhttp.setRequestHeader('x-api-key', apiKey)
-                xhttp.send();
-            }
-
-
-            function updateUI(){
-                if (predictionData) {
-                    updatePredictions()
-                }
-                // if (vehicleData) {
-                //     updateVehicle()
-                // }
-
-                // if (document.getElementById("vehicles-at-terminus")){
-                //     updateUnpredictedVehiclesAtTerminus()
-                // }
-            }
-
-            function updatePredictions(){
-                var predictions = {}
-                for (var i = 0; i < stopNums.length; i++) {
-                    predictions[stopNums[i]] = []
-                }
-
-                for (var i = 0; i < predictionData.length; i++) {
-                    var prediction = predictionData[i]
-                    var stopNum = prediction.relationships.stop.data.id
-
-                    if (stopConfig[stopNum] && stopConfig[stopNum]["maxNumPredictions"] && predictions[stopNum].length >= stopConfig[stopNum]["maxNumPredictions"]) {
-                        continue;
-                    }
-
-                    var vehicleId;
-                    if (prediction.relationships.vehicle.data) {
-                        vehicleId = prediction.relationships.vehicle.data.id
-                    }
-                    predictions[stopNum].push({
-                        'id': prediction.id,
-                        'route': prediction.relationships.route.data.id,
-                        'status': prediction.attributes.status,
-                        'arrivalTime': prediction.attributes.arrival_time,
-                        'departureTime': prediction.attributes.departure_time,
-                        'arrivalUncertainty': prediction.attributes.arrival_uncertainty,
-                        'vehicleId': vehicleId,
-                    })
-                }
-
-                var now = Date.now()
-                var shouldBeFastPolling = false;
-                for (var i = 0; i < stopNums.length; i++) {
-                    var newStopEl = document.createElement('div');
-                    newStopEl.setAttribute('id', "stop-body-"+ stopNums[i])
-
-                    for (var j = 0; j < predictions[stopNums[i]].length; j++) {
-                        prediction = predictions[stopNums[i]][j]
-                        var showNegative = false;
-                        if (stopConfig[stopNums[i]] && stopConfig[stopNums[i]]["showNegative"]) {
-                            showNegative = true;
-                        }
-
-                        var routeName;
-                        if (stopConfig[stopNums[i]] && stopConfig[stopNums[i]]["routeName"]) {
-                            routeName = stopConfig[stopNums[i]]["routeName"]
-                        } else {
-                            routeName = prediction.route
-                        }
-
-                        var showVehicleId = false;
-                        if (stopConfig[stopNums[i]] && stopConfig[stopNums[i]]["showVehicleId"]) {
-                            showVehicleId = true;
-                        }
-
-                        // var predictionMessage = "hi"
-                        var predictionMessage = formatPredictionMessage(now, prediction, showNegative, routeName, showVehicleId)
-
-                        if (predictionMessage) {
-                            var predictionEl = document.createElement('div');
-                            predictionEl.innerText = predictionMessage
-                            newStopEl.appendChild(predictionEl)
-                        }
-
-                        // if (stopConfig[stopNums[i]] && stopConfig[stopNums[i]]["addToVehiclesAtTerminus"] && new Date(prediction.arrivalTime) < now) {
-                        //     vehiclesAtTerminus[prediction.vehicleId] = {
-                        //         "arrivalTime": prediction.arrivalTime,
-                        //         "vehicleId": prediction.vehicleId,
-                        //     };
-                        // }
-                        // if (stopConfig[stopNums[i]] && stopConfig[stopNums[i]]["removeFromVehiclesAtTerminus"] && vehiclesAtTerminus[prediction.vehicleId]) {
-                        //     delete vehiclesAtTerminus[prediction.vehicleId];
-                        // }
-                    }
-                    // if (stopConfig[stopNums[i]] &&
-                    //     stopConfig[stopNums[i]]["fastPollIfNone"] &&
-                    //     newStopEl.children.length == 0) {
-                    //     shouldBeFastPolling = true;
-
-                    //     if (!isFastPoll){
-                    //         // switch to fast poll
-                    //         console.log("switching to fast poll")
-                    //         clearInterval(pollIntervalID);
-                    //         pollIntervalID = setInterval(callAPIs, fastPollingInterval);
-                    //         isFastPoll = true;
-                    //     }
-                    // }
-                    document.getElementById("stop-body-"+stopNums[i]).innerHTML = newStopEl.innerHTML
-                }
-
-                
-                if (isFastPoll && !shouldBeFastPolling) {
-                    // switch to slow poll
-                    console.log("switching to slow poll")
-                    isFastPoll = false;
-                    clearInterval(pollIntervalID);
-                    pollIntervalID = setInterval(callAPIs, pollingInterval);
-                }
-            }
-
-            function formatPredictionMessage(now, prediction, showNegative, routeName, showVehicleId){
-                var predictedTime
-                if (!prediction.arrivalTime){
-                    predictedTime = new Date(prediction.departureTime)
-                } else {
-                    predictedTime = new Date(prediction.arrivalTime)       
-                }
-                var minLeft = Math.round((predictedTime - now) / msPerMin)
-                
-                var timeMessage = "";
-                
-                if (minLeft < 0 && !showNegative) {
-                    return null
-                } else if (minLeft < 60) {
-                    timeMessage = minLeft + " min"
-                } else {
-                    var hours = predictedTime.getHours();
-                    var minutes = predictedTime.getMinutes();
-                    if (minutes < 10) {
-                        minutes = "0" + minutes
-                    }
-                    if (hours < 12){
-                        timeMessage = hours + "." + minutes + " am"
-                    } else if (hours == 12) {
-                        timeMessage = hours + "." + minutes + " pm"
-                    } else {
-                        timeMessage = hours - 12 + "." + minutes + " pm"
-                    }
-                }
-
-                var predictionMessage = routeName + ": " + timeMessage
-
-                if (prediction.status){
-                    predictionMessage += " - " + prediction.status
-                }
-
-                // https://github.com/mbta/gtfs-documentation/blob/master/reference/gtfs-realtime.md#uncertainty-values
-                // Mushing together both bus and rail codes
-                if (prediction.arrivalUncertainty){
-                    switch (true) {
-                        case prediction.arrivalUncertainty == 60:
-                            // Train: trip has started
-                            break;
-                        case prediction.arrivalUncertainty == 120:
-                            // Train: A terminal/reverse trip departure for a trip that has NOT started and a train is awaiting departure at the origin
-                            predictionMessage += " ~ waiting at origin"
-                            break;
-                        case prediction.arrivalUncertainty == 360:
-                            // Train: A terminal/reverse trip for a trip that has NOT started and a train is completing a previous trip
-                            predictionMessage += " ~ completing prev trip"
-                            break;
-                            // return null; // THIS IS A RETURN
-                        case prediction.arrivalUncertainty < 300:
-                            // Bus: Valid real-time prediction
-                            break;
-                        case prediction.arrivalUncertainty == 300:
-                            // Bus: Real-time prediction not available. This code is primarily used when a vehicle has not yet been assigned to the trip, (i.e. because the block has not started yet). It is a schedule-based prediction, but we adjust the schedule-based prediction time using observed historical travel times to make predictions more accurate than the schedule.
-                            predictionMessage += " ~ adjusted schedule"
-                            break;
-                        case prediction.arrivalUncertainty == 301:
-                            // Bus: Valid real-time prediction, though the bus appears to be stalled or significantly delayed and predictions are not as accurate
-                            predictionMessage += " ~ stalled/delayed"
-                            break;
-                        case prediction.arrivalUncertainty > 301:
-                            // Bus: Likely invalid prediction, recommend not showing anything (and not showing scheduled time), very rare situation.
-                            return null; // THIS IS A RETURN
-                        default:
-                            predictionMessage += " ~ unexpected code spot"
-                    }
-                }
-
-                if (showVehicleId) {
-                    predictionMessage += " - " + prediction.vehicleId
-                }
-                
-                return predictionMessage
-            }
-
-            function setStopsSleep(){
-                for (var i = 0; i < stopNums.length; i++) {
-                    var newStopEl = document.createElement('div');
-                    newStopEl.setAttribute('id', "stop-body-"+ stopNums[i])
-                    newStopEl.innerText = "Sleeping...";
-                    document.getElementById("stop-body-"+stopNums[i]).innerHTML = newStopEl.innerHTML
-                }
-            }
-
-            function getAndSetStops(){
-                var stopsString = getQueryVariable("stops")
-                stopNums = stopsString.split(",");
-
-                var xhttp = new XMLHttpRequest();
-                xhttp.onreadystatechange = function(event) {
-                    if (xhttp.readyState == XMLHttpRequest.DONE) {
-                        // console.log(xhttp.response)
-                        var stopsData = JSON.parse(xhttp.response).data
-                        for (var i = 0; i < stopNums.length; i++) {
-                            var stopData;
-                            for (var j = 0; j < stopsData.length; j++) {
-                                if (stopNums[i] == stopsData[j].id) {
-                                    stopData = stopsData[j]
-                                }
-                            }
-
-                            var el = document.createElement('div');
-                            el.setAttribute('id', "stop-"+ stopNums[i])
-                            var title;
-                            if (stopConfig[stopNums[i]] && stopConfig[stopNums[i]]["name"]) {
-                                title = stopConfig[stopNums[i]]["name"]
-                            }
-                            else if (stopData.attributes.description){
-                                title = stopData.attributes.description
-                            } else {
-                               title = stopData.attributes.name
-                           }
-                           el.innerHTML = '<h2 id="stop-title-' + stopNums[i] + '">' + title + '</h2><div id="stop-body-' + stopNums[i] +'"></div>';
-                           document.getElementById("content").appendChild(el)
-                       }
-                       callAPIs()
-                    }
-                };
-                if (!isFastPoll) { // if it is, the first call should have already switched and trigger the fast poll
-                    pollIntervalID = setInterval(callAPIs, pollingInterval);
-                }
-                xhttp.open("GET", "https://api-v3.mbta.com/stops" + "?filter[id]=" + stopNums.join(",") + "&fields[stop]=name,description", true);
-                xhttp.setRequestHeader('x-api-key', apiKey)
-                xhttp.send();
-            }
-
             function getQueryVariable(variable) {
                var query = window.location.search.substring(1);
                var vars = query.split("&");
@@ -455,7 +39,126 @@
                    if(pair[0] == variable){return pair[1];}
                }
                return(false);
-           }
+            }
+
+            window.onerror = function (message, file, line, col, error) {
+                var now = new Date()
+                logServer("onerror ending execution" + error.message + " : " + message + " : " + file + " : " + file + " : " + line + " : " + col + " : " + pollNum + " : " + now);
+                return false;
+             };
+
+             window.addEventListener("error", function (e) {
+                var now = new Date()
+                logServer("event error ending execution" + e.error.message + " : " + now);
+                return false;
+             })
+
+            var testLog = logServer("Starting " + new Date() + " " + window.navigator.userAgent)
+            testLog.onreadystatechange = function(event) {
+                if (testLog.readyState == XMLHttpRequest.DONE) {
+                    document.getElementById("message").innerText = testLog.response
+                }
+            };
+
+            var xhttp = new XMLHttpRequest();
+            xhttp.onerror = function(event) {
+                var xhttpString = "";
+                for (var key in xhttp) {
+                    if (typeof xhttp[key] !== 'function') {
+                        xhttpString += key + ":" + xhttp[key] + " ";
+                    }
+                }
+                logServer("xhttp error ending execution" + new Date() + " : " + event + " : " + pollNum + " : " + xhttpString)
+            }            
+            xhttp.onprogress = function(event) {
+                this_response = xhttp.response.substring(last_response_len);
+                last_response_len = xhttp.response.length
+                
+                var events = parseResponse(this_response)
+                document.getElementById("content").innerText = JSON.stringify(events)
+            };
+            xhttp.open("GET", "https://api-v3.mbta.com/predictions/?filter[stop]=12610&sort=arrival_time", true);
+            // xhttp.open("GET", "https://api-v3.mbta.com/predictions/?filter[stop]=2664,2594&sort=arrival_time", true);
+            xhttp.setRequestHeader('accept', 'text/event-stream')
+            xhttp.setRequestHeader('x-api-key', apiKey)
+            xhttp.send();
+
+            function processEvents(events){
+                for (var i = 0; i < events.length; i++) {
+                    var event = events[i];
+                    switch (event["event"]) {
+                      case "reset":
+                        predictions = "a"
+                        break;
+                      case event.startsWith(':'):
+                        // ignore
+                        break;
+                      case event.includes(':'):
+                        var splitIndex = event.indexOf(':');
+                        field = {
+                            "name": event.slice(0, splitIndex).trim(),
+                            "value": event.slice(splitIndex+1).trim()
+                        }
+                        event = processField(field, event)
+                        break;
+                      default:
+                        field = {
+                            "name": event,
+                            "value": ""
+                        }
+                        event = processField(field, event)
+                    }
+                }
+            }
+
+            // https://html.spec.whatwg.org/multipage/server-sent-events.html#event-stream-interpretation
+            function parseResponse(response) {
+                var lines = response.split('\n');
+                var events = [];
+                var event = {}
+                for (var i = 0; i < lines.length; i++) {
+                    var line = lines[i];
+                    switch (true) {
+                      case line === '':
+                        if ("event" in event){ // using this as a proxy for testing if empty, cheating the spec and expecting all events to have a name and not just data
+                            events.push(event);
+                        }
+                        event = {}
+                        break;
+                      case line.startsWith(':'):
+                        // ignore
+                        break;
+                      case line.includes(':'):
+                        var splitIndex = line.indexOf(':');
+                        field = {
+                            "name": line.slice(0, splitIndex).trim(),
+                            "value": line.slice(splitIndex+1).trim()
+                        }
+                        event = processField(field, event)
+                        break;
+                      default:
+                        field = {
+                            "name": line,
+                            "value": ""
+                        }
+                        event = processField(field, event)
+                    }
+                }
+                return events
+            }
+
+            // cutting corners with the spec to set instead of append, since the mbta api doesn't seem to send multi-line data events
+            function processField(field, event){
+                if (["event", "id"].indexOf(field["name"]) >= 0){
+                    event[field["name"]] = field["value"]
+                } else if (field["name"] === "data") {
+                    event["data"] = JSON.parse(field["value"])
+                } else {
+                    // turn this into accumulated error messages
+                    console.log("Unsupported field: " + JSON.stringify(field))
+                }
+                return event
+            }
         </script>
     </body>
 </html>
