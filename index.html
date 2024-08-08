@@ -19,7 +19,7 @@
 /*            font-size: 16px;*/
         }
         #clock {
-            font-size: 16px;
+/*            font-size: 16px;*/
         }
     </style>
     <body>
@@ -149,7 +149,7 @@
             }
 
             function getPredictions(){
-                // var xhttp = new XMLHttpRequest();
+                var xhttp = new XMLHttpRequest();
                 pollNum++;
                 var currentPollNum = pollNum
 
@@ -193,11 +193,11 @@
                         }
                         logServer("response " + new Date() + " : " + event + " : " + pollNum + " : " + xhttpString)
                         if (!xhttp.response){
-                            // predictionData = JSON.parse(xhttp.response).data
-                            // updateUI()
                             logServer("error: response null, ending execution");
                             throw new Error("network error, ending execution");
                         }
+                        predictionData = JSON.parse(xhttp.response).data
+                        updateUI()
                     }
                 };
                 xhttp.open("GET", "https://api-v3.mbta.com/predictions/?filter[stop]=" + stopNums.join(",") + "&sort=arrival_time", true);
