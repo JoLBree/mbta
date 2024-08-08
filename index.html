@@ -25,6 +25,7 @@
     <body>
         <div id="clock"></div>
         <div id="message"></div>
+        <div id="memory"></div>
         <div id="content"></div>
         <script type="text/javascript">
             var logDest = getQueryVariable("log")
@@ -141,7 +142,7 @@
             }
 
             function getPredictions(){
-                var xhttp = new XMLHttpRequest();
+                // var xhttp = new XMLHttpRequest();
                 pollNum++;
                 var currentPollNum = pollNum
 
@@ -160,38 +161,47 @@
                 } else {
                     timeMessage = hours - 12 + "." + minutes + ":" + seconds + " pm"
                 }
-                document.getElementById("clock").innerText = timeMessage
             
-                xhttp.onerror = function(event) {
-                    var xhttpString = "";
-                    for (var key in xhttp) {
-                        if (typeof xhttp[key] !== 'function') {
-                            xhttpString += key + ":" + xhttp[key] + " ";
-                        }
+                var memoryInfo = window.performance.memory
+                var memoryString = "";
+                for (var key in memoryInfo) {
+                    if (typeof memoryInfo[key] !== 'function') {
+                        memoryString += key + ":" + memoryInfo[key] + " ";
                     }
-                    logServer("xhttp error " + new Date() + " : " + event + " : " + pollNum + " : " + xhttpString)
                 }
-                xhttp.onreadystatechange = function(event) {
-                    // only update if it's the most recent request to have come back
-                    if (xhttp.readyState == XMLHttpRequest.DONE && latestReturnedPollNum < currentPollNum) {
-                        latestReturnedPollNum = currentPollNum;
-                        // document.getElementById("message").innerText = xhttp.response
-                        var xhttpString = "";
-                        for (var key in xhttp) {
-                            if (typeof xhttp[key] !== 'function') {
-                                xhttpString += key + ":" + xhttp[key] + " ";
-                            }
-                        }
-                        logServer("response " + new Date() + " : " + event + " : " + pollNum + " : " + xhttpString)
-                        if (xhttp.response){
-                            predictionData = JSON.parse(xhttp.response).data
-                            updateUI()
-                        }
-                    }
-                };
-                xhttp.open("GET", "https://api-v3.mbta.com/predictions/?filter[stop]=" + stopNums.join(",") + "&sort=arrival_time", true);
-                xhttp.setRequestHeader('x-api-key', apiKey)
-                xhttp.send();
+                document.getElementById("clock").innerText = timeMessage
+                document.getElementById("memory").innerText = memoryString
+                logServer(timeMessage + " : " + pollNum + " : " + memoryString)
+                // xhttp.onerror = function(event) {
+                //     var xhttpString = "";
+                //     for (var key in xhttp) {
+                //         if (typeof xhttp[key] !== 'function') {
+                //             xhttpString += key + ":" + xhttp[key] + " ";
+                //         }
+                //     }
+                //     logServer("xhttp error " + new Date() + " : " + event + " : " + pollNum + " : " + xhttpString)
+                // }
+                // xhttp.onreadystatechange = function(event) {
+                //     // only update if it's the most recent request to have come back
+                //     if (xhttp.readyState == XMLHttpRequest.DONE && latestReturnedPollNum < currentPollNum) {
+                //         latestReturnedPollNum = currentPollNum;
+                //         // document.getElementById("message").innerText = xhttp.response
+                //         var xhttpString = "";
+                //         for (var key in xhttp) {
+                //             if (typeof xhttp[key] !== 'function') {
+                //                 xhttpString += key + ":" + xhttp[key] + " ";
+                //             }
+                //         }
+                //         logServer("response " + new Date() + " : " + event + " : " + pollNum + " : " + xhttpString)
+                //         if (xhttp.response){
+                //             predictionData = JSON.parse(xhttp.response).data
+                //             updateUI()
+                //         }
+                //     }
+                // };
+                // xhttp.open("GET", "https://api-v3.mbta.com/predictions/?filter[stop]=" + stopNums.join(",") + "&sort=arrival_time", true);
+                // xhttp.setRequestHeader('x-api-key', apiKey)
+                // xhttp.send();
             }
 
 
