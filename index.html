@@ -25,7 +25,6 @@
     <body>
         <div id="clock"></div>
         <div id="message"></div>
-        <div id="memory"></div>
         <div id="content"></div>
         <script type="text/javascript">
             var logDest = getQueryVariable("log")
@@ -161,17 +160,9 @@
                 } else {
                     timeMessage = hours - 12 + "." + minutes + ":" + seconds + " pm"
                 }
-            
-                var memoryInfo = window.performance.memory
-                var memoryString = "";
-                for (var key in memoryInfo) {
-                    if (typeof memoryInfo[key] !== 'function') {
-                        memoryString += key + ":" + memoryInfo[key] + " ";
-                    }
-                }
+
                 document.getElementById("clock").innerText = timeMessage
-                document.getElementById("memory").innerText = memoryString
-                logServer(timeMessage + " : " + pollNum + " : " + memoryString)
+                logServer(timeMessage + " : " + pollNum)
                 // xhttp.onerror = function(event) {
                 //     var xhttpString = "";
                 //     for (var key in xhttp) {
