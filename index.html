@@ -16,7 +16,7 @@
             margin-block-end: 0;
         }
         #message {
-            font-size: 16px;
+/*            font-size: 16px;*/
         }
         #clock {
             font-size: 16px;
@@ -38,6 +38,12 @@
                 var xhttp = new XMLHttpRequest();
                 xhttp.open("POST", "https://" + logDest + ".lambda-url.us-east-2.on.aws/", true);
                 xhttp.setRequestHeader("Content-Type", "application/json");
+                xhttp.onreadystatechange = function(event) {
+                    // only update if it's the most recent request to have come back
+                    if (xhttp.readyState == XMLHttpRequest.DONE) {
+                        document.getElementById("message").innerText = xhttp.response
+                    }
+                };
                 xhttp.send(JSON.stringify({ "message": message}));
                 return xhttp
             }
@@ -162,7 +168,7 @@
                 }
 
                 document.getElementById("clock").innerText = timeMessage
-                logServer(timeMessage + " : " + pollNum)
+                logServer(timeMessage + " : " + pollNum + " " + window.navigator.userAgent)
                 // xhttp.onerror = function(event) {
                 //     var xhttpString = "";
                 //     for (var key in xhttp) {
